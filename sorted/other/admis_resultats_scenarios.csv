@@ -1,0 +1,4 @@
+scenario,delai_utilise,cout_total,delta_delai_moyen_min,delta_delai_med_min,delta_delai_p10_min,delta_delai_p90_min,nb_periodes_surcharge,faux_negatifs,faux_positifs
+edwin_1civ,admis_delai_moyen,1330,3.617591613515623,3.078521656655357,-38.13077510595885,44.668725182503835,587,53,69
+edwin_1med,admis_delai_moyen,704400,97.6291424430861,94.26737271436068,4.485581265440707,192.83157891827602,587,53,69
+edwin_civmed,admis_delai_moyen,705730,99.21830541908791,97.27255792895727,6.170853219833882,200.04916976671532,587,53,69

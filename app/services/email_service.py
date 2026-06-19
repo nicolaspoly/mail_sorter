@@ -1,0 +1,221 @@
+import imaplib
+import email
+from email.header import decode_header
+from email.utils import parsedate_to_datetime
+import os
+import re
+from dotenv import load_dotenv
+
+load_dotenv()
+
+EMAIL = os.getenv("EMAIL")
+PASSWORD = os.getenv("PASSWORD")
+
+# ==========================================================
+# ✅ HEADER DECODING (ULTRA ROBUSTE)
+# ==========================================================
+
+def decode_email_header(value):
+    if not value:
+        return ""
+
+    parts = decode_header(value)
+    result = ""
+
+    for part, encoding in parts:
+        if isinstance(part, bytes):
+            try:
+                result += part.decode(encoding or "utf-8", errors="ignore")
+            except:
+                result += part.decode("utf-8", errors="ignore")
+        else:
+            result += part
+
+    return clean_unicode(result)
+
+
+# ==========================================================
+# ✅ UNICODE CLEAN (CRITIQUE)
+# ==========================================================
+
+def clean_unicode(text):
+    if not text:
+        return ""
+
+    return str(text).encode("utf-8", "ignore").decode("utf-8", "ignore")
+
+
+# ==========================================================
+# ✅ BODY EXTRACTION + CLEAN
+# ==========================================================
+
+def extract_body(msg):
+    html = None
+    text = None
+
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+
+            if content_type == "text/html":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    html = payload.decode("utf-8", errors="ignore")
+
+            elif content_type == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    text = payload.decode("utf-8", errors="ignore")
+
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            text = payload.decode("utf-8", errors="ignore")
+
+    # ✅ priorité au HTML nettoyé
+    if html:
+        return clean_body(html)
+
+    return clean_body(text)
+
+
+from bs4 import BeautifulSoup
+import re
+
+def clean_body(html):
+    if not html:
+        return ""
+
+    # ✅ parser HTML correctement
+    soup = BeautifulSoup(html, "html.parser")
+
+    # ✅ supprimer scripts + styles
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+
+    # ✅ récupérer texte visible
+    text = soup.get_text(separator=" ")
+
+    # ✅ fix unicode
+    text = text.encode("utf-8", "ignore").decode("utf-8", "ignore")
+
+    # ✅ supprimer URLs
+    text = re.sub(r"http\S+", "", text)
+
+    # ✅ supprimer footer typiques
+    text = re.sub(r"(unsubscribe|se désabonner|voir en ligne).*", "", text, flags=re.IGNORECASE)
+
+    # ✅ nettoyer espaces
+    text = re.sub(r"\s+", " ", text)
+
+    # ✅ limiter taille
+    return text.strip()[:2000]
+
+
+# ==========================================================
+# ✅ DOMAIN EXTRACTION
+# ==========================================================
+
+def extract_domain(sender):
+    if not sender:
+        return "unknown"
+
+    sender = str(sender)
+
+    match = re.search(r'@([\w\.-]+)', sender)
+    if match:
+        return match.group(1).lower()
+
+    return "unknown"
+
+
+# ==========================================================
+# ✅ ATTACHMENTS
+# ==========================================================
+
+def extract_attachments(msg, download_dir="downloads"):
+    attachments = []
+    os.makedirs(download_dir, exist_ok=True)
+
+    for part in msg.walk():
+        content_disposition = str(part.get("Content-Disposition"))
+
+        if "attachment" in content_disposition:
+            filename = part.get_filename()
+
+            if filename:
+                filename = clean_unicode(filename)
+                filepath = os.path.join(download_dir, filename)
+
+                with open(filepath, "wb") as f:
+                    f.write(part.get_payload(decode=True))
+
+                attachments.append(filepath)
+
+    return attachments
+
+
+# ==========================================================
+# ✅ FETCH EMAILS (ROBUSTE)
+# ==========================================================
+
+def fetch_emails():
+    mail = imaplib.IMAP4_SSL("imap.gmail.com")
+    mail.login(EMAIL, PASSWORD)
+
+    print("✅ Connected to Gmail")
+
+    mail.select("inbox")
+
+    status, messages = mail.search(None, "ALL")
+    email_ids = messages[0].split()
+
+    print("📨 Found emails:", len(email_ids))
+
+    results = []
+
+    for e_id in email_ids[-500:]:  # limite pour éviter surcharge
+        _, msg_data = mail.fetch(e_id, "(RFC822)")
+
+        for response_part in msg_data:
+            if isinstance(response_part, tuple):
+                msg = email.message_from_bytes(response_part[1])
+
+                # ✅ HEADERS clean
+                subject = decode_email_header(msg.get("Subject"))
+                sender = decode_email_header(msg.get("From"))
+
+                # ✅ DATE
+                raw_date = msg.get("Date")
+                try:
+                    date = parsedate_to_datetime(raw_date).isoformat()
+                except:
+                    date = ""
+
+                print("📩 Processing email:", subject)
+
+                # ✅ BODY clean
+                body = extract_body(msg)
+
+                # ✅ ATTACHMENTS
+                attachments = extract_attachments(msg)
+
+                results.append({
+                    "subject": subject,
+                    "body": body,
+                    "sender": sender,
+                    "date": date,
+                    "attachments": [str(a) for a in attachments]
+                })
+
+    mail.logout()
+    return results
+
+
+# ==========================================================
+# ✅ SAFE JSON (ANTI CRASH FASTAPI)
+# ==========================================================
+
+def safe_json(data):
+    import json
+    return json.loads(json.dumps(data, ensure_ascii=False))
