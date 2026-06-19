@@ -69,12 +69,12 @@ model.fit(X_train, y_train)
 # =========================
 # 6. EVALUATION
 # =========================
-from sklearn.metrics import classification_report
+# from sklearn.metrics import classification_report
 
-y_pred = model.predict(X_test)
+# y_pred = model.predict(X_test)
 
-print("\n📊 Classification report:\n")
-print(classification_report(y_test, y_pred))
+# print("\n📊 Classification report:\n")
+# print(classification_report(y_test, y_pred))
 
 # =========================
 # 7. PREDICTION FUNCTION

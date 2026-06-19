@@ -160,57 +160,50 @@ def extract_attachments(msg, download_dir="downloads"):
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
 
-def fetch_emails(num_emails=500):
-    mail = imaplib.IMAP4_SSL("imap.gmail.com")
-    mail.login(EMAIL, PASSWORD)
 
-    print("✅ Connected to Gmail")
+def fetch_emails_gmail(service, num_emails=10):
 
-    mail.select("inbox")
+    results = service.users().messages().list(
+        userId='me',
+        maxResults=num_emails
+    ).execute()
 
-    status, messages = mail.search(None, "ALL")
-    email_ids = messages[0].split()
+    messages = results.get("messages", [])
 
-    print("📨 Found emails:", len(email_ids))
+    emails = []
 
-    results = []
+    for m in messages:
 
-    for e_id in email_ids[-num_emails:]:  # limite pour éviter surcharge
-        _, msg_data = mail.fetch(e_id, "(RFC822)")
+        msg_id = m["id"]
 
-        for response_part in msg_data:
-            if isinstance(response_part, tuple):
-                msg = email.message_from_bytes(response_part[1])
+        full_msg = service.users().messages().get(
+            userId='me',
+            id=msg_id,
+            format='full'
+        ).execute()
 
-                # ✅ HEADERS clean
-                subject = decode_email_header(msg.get("Subject"))
-                sender = decode_email_header(msg.get("From"))
+        headers = full_msg["payload"]["headers"]
 
-                # ✅ DATE
-                raw_date = msg.get("Date")
-                try:
-                    date = parsedate_to_datetime(raw_date).isoformat()
-                except:
-                    date = ""
+        subject = ""
+        sender = ""
 
-#                print("📩 Processing email:", subject)
+        for h in headers:
+            if h["name"] == "Subject":
+                subject = h["value"]
+            if h["name"] == "From":
+                sender = h["value"]
 
-                # ✅ BODY clean
-                body = extract_body(msg)
+        body = full_msg.get("snippet", "")
 
-                # ✅ ATTACHMENTS
-                attachments = extract_attachments(msg)
+        emails.append({
+            "subject": subject,
+            "body": body,
+            "sender": sender,
+            "attachments": [],  # simplifié pour l'instant
+            "message_id": msg_id  # ✅ ID CORRECT
+        })
 
-                results.append({
-                    "subject": subject,
-                    "body": body,
-                    "sender": sender,
-                    "date": date,
-                    "attachments": [str(a) for a in attachments]
-                })
-
-    mail.logout()
-    return results
+    return emails
 
 
 # ==========================================================
@@ -246,7 +239,7 @@ def save_to_json(data, output_dir="downloads"):
 
 
 if __name__ == "__main__":
-    emails = fetch_emails()
+    emails = fetch_emails_gmail()
 
     # optionnel : sécuriser données
     emails = safe_json(emails)
@@ -272,7 +265,7 @@ def predict_email(subject, body, sender, model=None, embedder=None):
 
 import json
 
-def process_emails(num_emails=50, model=None, embedder=None):
+def process_emails(num_emails=50, model=None, embedder=None,service=None):
 
     # lazy loading (propre)
     if model is None or embedder is None:
@@ -282,7 +275,7 @@ def process_emails(num_emails=50, model=None, embedder=None):
         embedder = SentenceTransformer("all-MiniLM-L6-v2")
         model = joblib.load("app/data/models/email_classifier.joblib")
 
-    emails = fetch_emails(num_emails=num_emails)
+    emails = fetch_emails_gmail(service, num_emails=num_emails)
 
     results = []
 
@@ -308,8 +301,9 @@ def process_emails(num_emails=50, model=None, embedder=None):
             "category": category,
             "confidence": float(confidence),  # ✅ JSON safe
             "files": moved_files,
-            "sender": decode_email_header(sender)
+            "sender": decode_email_header(sender),
+            "message_id": email["message_id"]  # 🔥 IMPORTANT
         })
 
     # ✅ conversion JSON directe
-    return json.dumps(results, ensure_ascii=False, indent=2)
+    return results

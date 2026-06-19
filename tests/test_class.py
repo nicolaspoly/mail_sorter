@@ -3,7 +3,7 @@ import json
 
 # ✅ IMPORTS
 from app.services.classifier_service import classify_email
-from email_classifier_ml import predict_email  # ton modèle transformers
+from app.services.email_classifier_ml import predict_email  # ton modèle transformers
 
 # =========================
 # 1. LOAD DATA

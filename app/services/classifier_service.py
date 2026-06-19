@@ -131,20 +131,32 @@ def classify_email(subject, body, sender):
 
     return "other"
 
-from app.utils.text_utils import fetch_emails
+from app.services.gmail_service import authenticate_gmail
+from app.utils.text_utils import fetch_emails_gmail
+from app.services.classifier_service import classify_email
 
 
 def classify_emails():
-    emails = fetch_emails()
+
+    # ✅ connecter une seule fois
+    service = authenticate_gmail()
+
+    emails = fetch_emails_gmail(service=service)
 
     results = []
 
     for email in emails:
-        category = classify_email(email["subject"], email["body"], email["sender"])
+
+        category = classify_email(
+            email["subject"],
+            email["body"],
+            email["sender"]
+        )
 
         results.append({
             "subject": email["subject"],
-            "category": category
+            "category": category,
+            "message_id": email["message_id"]  # 🔥 important pour Gmail actions
         })
 
     return results
