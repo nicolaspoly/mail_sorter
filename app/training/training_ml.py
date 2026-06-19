@@ -4,7 +4,7 @@ import json
 # =========================
 # 1. LOAD DATASET
 # =========================
-with open("/Users/nicolasjouglet/Downloads/response_1781821630469.json") as f:
+with open("downloads/cleaned_dataset.json") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
@@ -93,65 +93,65 @@ def predict_email(subject, body, sender):
 # =========================
 # 8. TEST
 # =========================
-print("\n🔮 Prediction test:\n")
+# print("\n🔮 Prediction test:\n")
 
-label, conf = predict_email(
-    "JUSQU'À -40 % Black Friday",
-    "Profitez de nos offres",
-    "adidas@fr-news.adidas.com"
-)
+# label, conf = predict_email(
+#     "JUSQU'À -40 % Black Friday",
+#     "Profitez de nos offres",
+#     "adidas@fr-news.adidas.com"
+# )
 
-print(f"Label: {label} | Confidence: {conf:.2f}")
+# print(f"Label: {label} | Confidence: {conf:.2f}")
 
-# =========================
-# 9. DEBUG DATASET
-# =========================
-print("\n📈 Distribution labels:\n")
-print(df["label"].value_counts())
+# # =========================
+# # 9. DEBUG DATASET
+# # =========================
+# print("\n📈 Distribution labels:\n")
+# print(df["label"].value_counts())
 
-# =========================
-# 10. FULL DATASET CHECK
-# =========================
+# # =========================
+# # 10. FULL DATASET CHECK
+# # =========================
 
-print("\n🔎 Full dataset verification:\n")
+# print("\n🔎 Full dataset verification:\n")
 
-results = []
+# results = []
 
-for idx, row in df.iterrows():
-    subject = row["subject"]
-    body = row["body"]
-    sender = row["sender"]
-    true_label = row["label"]
+# for idx, row in df.iterrows():
+#     subject = row["subject"]
+#     body = row["body"]
+#     sender = row["sender"]
+#     true_label = row["label"]
 
-    pred_label, conf = predict_email(subject, body, sender)
+#     pred_label, conf = predict_email(subject, body, sender)
 
-    results.append({
-        "subject": subject[:60],
-        "true": true_label,
-        "pred": pred_label,
-        "confidence": conf,
-        "correct": true_label == pred_label
-    })
+#     results.append({
+#         "subject": subject[:60],
+#         "true": true_label,
+#         "pred": pred_label,
+#         "confidence": conf,
+#         "correct": true_label == pred_label
+#     })
 
-results_df = pd.DataFrame(results)
+# results_df = pd.DataFrame(results)
 
 # =========================
 # 11. STATS
 # =========================
 
-accuracy = results_df["correct"].mean()
-print(f"\n✅ Accuracy (full dataset): {accuracy:.2f}")
+# accuracy = results_df["correct"].mean()
+# print(f"\n✅ Accuracy (full dataset): {accuracy:.2f}")
 
-# =========================
-# 12. ERREURS
-# =========================
+# # =========================
+# # 12. ERREURS
+# # =========================
 
-errors = results_df[results_df["correct"] == False]
+# errors = results_df[results_df["correct"] == False]
 
-print(f"\n❌ Nombre d'erreurs: {len(errors)}")
+# print(f"\n❌ Nombre d'erreurs: {len(errors)}")
 
-print("\n🔍 Exemple d'erreurs:\n")
-print(errors.head(10))
+# print("\n🔍 Exemple d'erreurs:\n")
+# print(errors.head(10))
 
 # =========================
 # 13. ARBITRAGE INTERACTIF
@@ -184,3 +184,27 @@ def review_errors(errors_df):
     errors_df["final_label"] = corrected_labels
 
     return errors_df
+
+# =========================
+# 14. SAVE MODEL
+# =========================
+
+import joblib
+import os
+
+os.makedirs("app/data/models", exist_ok=True)
+
+joblib.dump(model, "app/data/models/email_classifier.joblib")
+
+print("✅ Modèle sauvegardé dans app/data/models/")
+
+def predict_email(subject, body, sender,model=model, embedder=embedder):
+    text = subject + " " + body + " " + sender
+
+    emb = embedder.encode([text])
+
+    proba = model.predict_proba(emb)[0]
+    label = model.predict(emb)[0]
+    confidence = max(proba)
+
+    return label, confidence

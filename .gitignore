@@ -1,0 +1,10 @@
+mail_env/
+__pycache__/
+*.pyc
+
+downloads/
+sorted/
+organized/
+
+.env
+.DS_Store
